@@ -8,6 +8,10 @@ const cors = require('cors');
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use(cors({
+  origin: 'https://instagram.security.suport.metas.onrender.com' // domínio real do frontend, não do servidor
+}));
+
 
 // Conectar ao MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
