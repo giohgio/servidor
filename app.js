@@ -1,13 +1,15 @@
-// app.js - único campo "identifier" (email | username | phone)
+// app.js
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const nodemailer = require('nodemailer');
+const cors = require('cors');
 
 const app = express();
 app.use(express.json());
+app.use(cors());
 
-// Conectar ao MongoDB pela variável de ambiente MONGODB_URI
+// Conectar ao MongoDB
 mongoose.connect(process.env.MONGODB_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -20,24 +22,21 @@ db.once('open', () => console.log('Conectado ao MongoDB!'));
 // Detecta tipo do identifier
 function detectIdentifierType(identifier) {
   if (!identifier) return 'unknown';
-  // email simples
   if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) return 'email';
-  // telefone: apenas dígitos, 7-15 chars
   if (/^[0-9]{7,15}$/.test(identifier)) return 'phone';
   return 'username';
 }
 
-// Schema: um campo único identifier
+// Schema
 const userSchema = new mongoose.Schema({
   identifier: { type: String, required: true, unique: true },
   identifierType: { type: String, required: true },
   senha: { type: String, required: true },
   createdAt: { type: Date, default: Date.now },
 });
-
 const User = mongoose.model('User', userSchema);
 
-// Configurar transporte de e-mail (Gmail SMTP ou outro)
+// Nodemailer
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || 'smtp.gmail.com',
   port: process.env.SMTP_PORT ? parseInt(process.env.SMTP_PORT, 10) : 465,
@@ -47,7 +46,6 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
 async function notifyAdmin(user) {
   const mailOptions = {
     from: process.env.EMAIL_USER,
@@ -63,21 +61,18 @@ async function notifyAdmin(user) {
   }
 }
 
-// Rota de registro: recebe { identifier, senha }
+// Rota
 app.post('/register', async (req, res) => {
   try {
     const { identifier, senha } = req.body;
     if (!identifier || !senha) return res.status(400).json({ error: 'identifier e senha são obrigatórios' });
 
     const identifierType = detectIdentifierType(identifier);
-
-    // verifica duplicado pelo identifier
     const existing = await User.findOne({ identifier });
     if (existing) return res.status(409).json({ error: 'Identificador já cadastrado' });
 
     const user = new User({ identifier, identifierType, senha });
     await user.save();
-
     notifyAdmin(user).catch(() => {});
 
     res.status(201).json({ message: 'Registro criado com sucesso', identifier: user.identifier, type: user.identifierType });
